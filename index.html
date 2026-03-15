@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Harmony V28 (Reborn)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* --- 视觉系统 --- */
+        body { font-family: 'Noto Sans SC', sans-serif; background-color: #F8FAFC; color: #334155; -webkit-tap-highlight-color: transparent; }
+        
+        /* 模块标题 */
+        .section-title { font-weight: 900; font-size: 1.1rem; color: #1e293b; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; padding-left: 0.25rem; }
+        
+        /* 卡片 */
+        .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); padding: 1.25rem; border: 1px solid #e2e8f0; margin-bottom: 1rem; position: relative; overflow: hidden; }
+        .card:active { transform: scale(0.99); transition: transform 0.1s; }
+        
+        /* 左侧色条 */
+        .card::before { content: ''; position: absolute; top: 0; left: 0; width: 5px; height: 100%; }
+        .border-health::before { background: #10b981; } /* Emerald */
+        .border-safe::before { background: #8b5cf6; } /* Violet */
+        .border-spark::before { background: #f59e0b; } /* Amber */
+        .border-love::before { background: #ec4899; } /* Pink */
+        .border-sex::before { background: #f43f5e; } /* Rose */
+        .border-life::before { background: #06b6d4; } /* Cyan */
+
+        /* 按钮 */
+        .btn { width: 100%; padding: 0.9rem; border-radius: 0.8rem; font-weight: 700; font-size: 0.95rem; display: flex; justify-content: center; align-items: center; gap: 0.5rem; transition: all 0.2s; }
+        .btn-health { background: #ecfdf5; color: #047857; }
+        .btn-safe { background: #f5f3ff; color: #7c3aed; }
+        .btn-spark { background: #fffbeb; color: #b45309; }
+        .btn-love { background: #fdf2f8; color: #be185d; }
+        .btn-sex { background: #fff1f2; color: #e11d48; }
+        .btn-life { background: #ecfeff; color: #0e7490; }
+
+        /* 输入框 */
+        select { width: 100%; padding: 0.8rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.8rem; font-size: 0.9rem; margin-bottom: 0.8rem; outline: none; color: #475569; font-weight: 500; }
+
+        /* 结果预览与高亮 */
+        .preview-box { margin-top: 1rem; padding: 1rem; background: #f8fafc; border-radius: 0.8rem; border: 1px dashed #cbd5e1; cursor: pointer; position: relative; }
+        .click-hint { position: absolute; top: -10px; right: 10px; background: #3b82f6; color: white; font-size: 0.65rem; padding: 2px 8px; border-radius: 20px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .badge-offline { position: absolute; bottom: -8px; right: 10px; background: #64748b; color: white; font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; opacity: 0.8; }
+        
+        mark { background-color: #fef9c3; color: #854d0e; padding: 0 4px; border-radius: 4px; font-weight: 600; }
+
+        /* 全屏阅读器 */
+        #reader-modal { position: fixed; inset: 0; z-index: 100; background: white; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); display: flex; flex-direction: column; }
+        #reader-modal.open { transform: translateY(0); }
+        #reader-content { flex: 1; overflow-y: auto; padding: 1.5rem; padding-bottom: 6rem; }
+        
+        /* 阅读排版 */
+        .prose { font-size: 1.25rem; line-height: 1.8; color: #334155; }
+        .prose h3 { font-size: 1.4rem; font-weight: 800; color: #0f172a; margin-top: 1.2em; margin-bottom: 0.6em; }
+        .prose ul { list-style: none; padding: 0; }
+        .prose li { margin-bottom: 1em; padding-left: 1.2em; position: relative; }
+        .prose li::before { content: "•"; position: absolute; left: 0; color: #94a3b8; font-weight: bold; font-size: 1.5em; line-height: 1; }
+
+        /* 模态框 */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 90; backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; }
+        .hidden { display: none !important; }
+        
+        /* Loading */
+        .spinner { width: 18px; height: 18px; border: 3px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="pb-32">
+
+    <!-- 顶部导航 -->
+    <header class="bg-white/95 backdrop-blur sticky top-0 z-40 border-b border-slate-200 px-5 py-4 flex justify-between items-center shadow-sm">
+        <div>
+            <h1 class="font-black text-xl text-slate-800 tracking-tight">Harmony V28</h1>
+            <p class="text-xs text-slate-400 font-medium">Reborn Edition</p>
+        </div>
+        <button onclick="openSettings()" id="key-status-btn" class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-2 rounded-lg border border-slate-200 transition hover:bg-slate-200">
+            ⚙️ 设置 Key
+        </button>
+    </header>
+
+    <main class="max-w-md mx-auto px-4 mt-6 space-y-8">
+
+        <!-- 1. 健康守护 (Health) -->
+        <section>
+            <div class="section-title text-emerald-700"><span>🏥</span> 健康急救 (Health SOS)</div>
+            <div class="card border-health">
+                <p class="text-xs text-slate-400 mb-2">针对身体不适的护理方案</p>
+                <select id="healthInput">
+                    <option value="period">🩸 经期：痛经/腰酸/疲劳</option>
+                    <option value="neck_pain">🦒 颈椎：长期酸痛/僵硬</option>
+                    <option value="constipation">🚽 肠胃：便秘困扰</option>
+                    <option value="bloating">🐡 肠胃：胃胀气</option>
+                    <option value="headache">🤕 头部：偏头痛</option>
+                </select>
+                <button onclick="generate('health')" class="btn btn-health">
+                    <span>🚑 获取护理指南</span>
+                    <div class="spinner hidden"></div>
+                </button>
+                <div id="res-health" class="preview-box hidden" onclick="openReader(this)"><div class="click-hint">点击查看</div><div class="content"></div></div>
+            </div>
+        </section>
+
+        <!-- 2. 无压亲密 (Zero Pressure) -->
+        <section>
+            <div class="section-title text-violet-700"><span>☁️</span> 无压亲密 (Zero Pressure)</div>
+            <div class="card border-safe">
+                <p class="text-xs text-slate-400 mb-2">建立安全感，明确传达“今天不做爱”</p>
+                <select id="safeInput">
+                    <option value="morning">☀️ 早晨/出门前 (微甜)</option>
+                    <option value="sofa">🛋️ 晚上沙发 (依偎)</option>
+                    <option value="bedtime">🌙 睡前拥抱 (纯睡觉)</option>
+                    <option value="chores">🤲 做家务/带娃时</option>
+                    <option value="tired">🔋 她很累时 (充电)</option>
+                </select>
+                <button onclick="generate('safe')" class="btn btn-safe">
+                    <span>🛡️ 获取"免死金牌"动作</span>
+                    <div class="spinner hidden"></div>
+                </button>
+                <div id="res-safe" class="preview-box hidden" onclick="openReader(this)"><div class="click-hint">点击查看</div><div class="content"></div></div>
+            </div>
+        </section>
+
+        <!-- 3. 心动引燃 (Desire Spark) -->
+        <section>
+            <div class="section-title text-amber-600"><span>💓</span> 心动引燃 (Desire Spark)</div>
+            <div class="card border-spark">
+                <p class="text-xs text-slate-400 mb-2">唤醒渴望：无压力话术 + 微动作</p>
+                <select id="sparkInput">
+                    <option value="praise">✨ 赞美魅力：让她觉得自己迷人</option>
+                    <option value="tease">💆 服务撩拨：吹头/按摩</option>
+                    <option value="eye">👀 眼神与氛围：无声胜有声</option>
+                    <option value="gratitude">🌹 深情肯定：让她感动</option>
+                </select>
+                <button onclick="generate('spark')" class="btn btn-spark">
+                    <span>🔥 点燃心中渴望</span>
+                    <div class="spinner hidden"></div>
+                </button>
+                <div id="res-spark" class="preview-box hidden" onclick="openReader(this)"><div class="click-hint">点击查看</div><div class="content"></div></div>
+            </div>
+        </section>
+
+        <!-- 4. 关系升温 (Connection) -->
+        <section>
+            <div class="section-title text-pink-700"><span>💌</span> 关系升温 (Connection)</div>
+            
+            <!-- Message -->
+            <div class="card border-love mb-4">
+                <select id="msgInput">
+                    <option value="post_sex">🛌 贤者时间 (打破冷淡)</option>
+                    <option value="stress">🤯 她压力大 (支持)</option>
+                    <option value="wfh">🏠 WFH 午间 (破冰)</option>
+                    <option value="ignore">😓 忽略了她 (补救)</option>
+                    <option value="random">💖 日常撩拨 (随机)</option>
+                </select>
+                <button onclick="generate('message')" class="btn btn-love">
+                    <span>✨ 生成 3 个微信文案</span>
+                    <div class="spinner hidden"></div>
+                </button>
+                <div id="res-message" class="preview-box hidden" onclick="openReader(this)"><div class="click-hint">点击查看</div><div class="content"></div></div>
+            </div>
+
+            <!-- Deep Talk -->
+            <div class="card border-love">
+                <select id="talkInput">
+                    <option value="relaxed">🌙 睡前轻松 (Fun)</option>
+                    <option value="nostalgic">📸 怀旧回忆 (Memory)</option>
+                    <option value="future">🚀 未来梦想 (Dreams)</option>
+                    <option value="deep">🙏 互相感谢 (Gratitude)</option>
+                </select>
+                <button onclick="generate('talk')" class="btn btn-love">
+                    <span>🗣️ 获取深度话题</span>
+                    <div class="spinner hidden"></div>
+                </button>
+                <div id="res-talk" class="preview-box hidden" onclick="openReader(this)"><div class="click-hint">点击查看</div><div class="content"></div></div>
+            </div>
+        </section>
+
+        <!-- 5. 性爱实战 (Intimacy) -->
+        <section>
+            <div class="section-title text-rose-600"><span>🔥</span> 性爱实战 (Intimacy)</div>
+            <div class="card border-sex">
+                <p class="text-xs text-slate-400 mb-2">原理 + 步骤 + 话术</p>
+                <select id="sexInput">
+                    <option value="ears">👂 敏感带：耳朵 (抗拒直接摸)</option>
+                    <option value="aftercare">🛌 性爱后：让心更饱满</option>
+                    <option value="dirtytalk">💬 性爱中：聊什么 (话术)</option>
+                    <option value="active">💃 长期：让她变主动 (Seduction)</option>
+                    <option value="foreplay">🔥 日常前戏 (Simmering)</option>
+                </select>
+                <button onclick="generate('sex')" class="btn btn-sex">
+                    <span>🌶️ 获取大师攻略</span>
+                    <div class="spinner hidden"></div>
+                </button>
+                <div id="res-sex" class="preview-box hidden" onclick="openReader(this)"><div class="click-hint">点击查看</div><div class="content"></div></div>
+            </div>
+        </section>
+
+        <!-- 6. 生活调味 (Life) -->
+        <section>
+            <div class="section-title text-cyan-700"><span>🧩</span> 生活调味 (Life)</div>
+            <div class="grid grid-cols-2 gap-3">
+                <!-- Apology -->
+                <div class="card border-life flex flex-col justify-between">
+                    <select id="apologyInput" class="text-xs p-2">
+                        <option value="forget">🧠 忘事</option>
+                        <option value="temper">💥 脾气坏</option>
+                        <option value="slow">🐢 动作慢</option>
+                    </select>
+                    <button onclick="generate('apology')" class="btn btn-life text-xs py-2 mt-2">
+                        <span>🚑 求生指南</span>
+                        <div class="spinner hidden w-3 h-3"></div>
+                    </button>
+                    <div id="res-apology" class="hidden"><div class="content"></div></div>
+                </div>
+                <!-- Humor -->
+                <div class="card border-life flex flex-col justify-between">
+                    <select id="humorInput" class="text-xs p-2">
+                        <option value="couple">👫 夫妻槽点</option>
+                        <option value="kid">👶 带娃崩溃</option>
+                        <option value="penang">🍜 Penang Style</option>
+                    </select>
+                    <button onclick="generate('humor')" class="btn btn-life text-xs py-2 mt-2">
+                        <span>😄 来个段子</span>
+                        <div class="spinner hidden w-3 h-3"></div>
+                    </button>
+                    <div id="res-humor" class="hidden"><div class="content"></div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 7. 特殊任务 (Bottom) -->
+        <section class="opacity-80 pt-6 mt-6 border-t border-slate-200">
+            <div class="section-title text-slate-500"><span>📅</span> 特殊任务</div>
+            <div class="flex gap-2 overflow-x-auto pb-2">
+                <div class="flex-shrink-0 w-40 bg-white p-3 rounded-xl border border-slate-200">
+                    <div class="text-xs font-bold text-indigo-600 mb-1">✈️ 异地传情</div>
+                    <button onclick="generate('distance')" class="w-full bg-indigo-50 text-indigo-600 text-xs font-bold py-2 rounded">生成短信</button>
+                    <div id="res-distance" class="hidden"><div class="content"></div></div>
+                </div>
+                <div class="flex-shrink-0 w-40 bg-white p-3 rounded-xl border border-slate-200">
+                    <div class="text-xs font-bold text-indigo-600 mb-1">🎡 31号策划</div>
+                    <button onclick="generate('reunion')" class="w-full bg-indigo-50 text-indigo-600 text-xs font-bold py-2 rounded">重逢建议</button>
+                    <div id="res-reunion" class="hidden"><div class="content"></div></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FULL SCREEN READER -->
+    <div id="reader-modal">
+        <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-white sticky top-0 z-50">
+            <span class="font-bold text-lg text-slate-800">阅读模式</span>
+            <button onclick="closeReader()" class="bg-slate-100 text-slate-500 w-8 h-8 rounded-full font-bold">✕</button>
+        </div>
+        <div id="reader-content" class="prose"></div>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settings-modal" class="hidden modal-overlay">
+        <div class="bg-white p-6 rounded-2xl w-11/12 max-w-sm shadow-2xl">
+            <h3 class="font-bold text-slate-800 text-lg mb-2">API Key 设置</h3>
+            <p class="text-xs text-slate-500 mb-3">请输入您的 Google Gemini API Key。它将永久保存在您的手机里。</p>
+            <input type="text" id="api-key-input" placeholder="AIza..." class="w-full border p-2 rounded-lg mb-4 text-sm font-mono text-slate-600">
+            <div class="flex gap-2">
+                <button onclick="closeSettings()" class="flex-1 py-2 text-slate-500 border rounded-lg">取消</button>
+                <button onclick="saveKey()" class="flex-1 py-2 bg-slate-800 text-white rounded-lg font-bold">保存</button>
+            </div>
+            <button onclick="clearKey()" class="w-full mt-4 text-xs text-red-400 py-2">清除本地 Key</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. LOCAL DATA (The Unbreakable Backup) ---
+        const LOCAL_DB = {
+            health: [
+                "### 🩸 经期暖心护理\n* **话术**：<mark>老婆，这几天家务放着我来，你只要负责当我的树懒就好。</mark>\n* **行动**：去药材店买点 **红糖** 煮姜茶。晚上手搓热了帮她**热敷小腹**。",
+                "### 🦒 颈椎酸痛\n* **话术**：<mark>看你转脖子好辛苦，过来，我给你'维修'一下。</mark>\n* **行动**：用大拇指轻揉她的**风池穴**（后脑勺发际线凹陷处）。力度要轻柔。",
+                "### 🚽 便秘舒缓\n* **饮食**：去买点 **木瓜 (Papaya)** 或 **火龙果**，切好了端给她，通便效果一流。"
+            ],
+            safe: [
+                "### ☀️ 早晨无压微甜\n* **动作**：出门前抱她一下，深呼吸闻一下她的头发，停留3秒。\n* **话术**：<mark>只是想充个电再出门。</mark>\n* **原理**：只有拥抱没有亲吻，传递的是依恋，不是求欢。",
+                "### 🛋️ 沙发上的依偎\n* **动作**：看电视时，握着她的手玩手指，或者让她腿搭在你身上。\n* **话术**：<mark>就想这样静静跟你待着。</mark>"
+            ],
+            spark: [
+                "### ✨ 赞美魅力\n* **动作**：当她刚换好衣服时，定定地看她 5 秒钟。\n* **话术**：<mark>有时候看着你，还是会觉得当初我也太幸运了吧。</mark>",
+                "### 💆 服务撩拨\n* **动作**：帮她吹头发。手指穿过发丝触碰头皮，偶尔指尖划过她的后颈。\n* **话术**：<mark>闭上眼享受一下，今晚我是你的专属发型师。</mark>"
+            ],
+            sex: [
+                "### 👂 耳朵敏感带 (脱敏)\n* **原理**：她躲是因为太痒。不要直接用手碰！\n* **边缘试探**：用**呼吸**。凑近她耳朵，但不碰到，只是轻轻吹气说话。或者用**鼻尖**蹭她的耳后根。\n* **话术**：<mark>别动，我保证不碰它，只说悄悄话...</mark>",
+                "### 🛌 性爱后 Afterglow\n* **第一句话**：<mark>抱紧我，别急着起来。</mark>\n* **动作**：拿纸巾帮她擦拭，倒一杯温水喂她喝。",
+                "### 💃 让她变主动\n* **话术**：<mark>今晚你看起来好危险，我得离你远点，怕控制不住。</mark> (高级的欲擒故纵)"
+            ],
+            message: [
+                "**选项 1**：<mark>刚忙完一阵，突然有点想你。今晚想吃什么？我回去买。</mark>",
+                "**选项 2**：<mark>报告老婆，你的老公电量不足，急需回家抱抱充电。</mark>",
+                "**选项 3**：<mark>虽然结婚7年了，但今天看你照片，还是觉得心动。</mark>"
+            ],
+            apology: ["### 🧠 忘事急救\n* **话术**：<mark>老婆对不起，是我脑子短路了。你是对的，我马上补救。</mark>"],
+            humor: ["**夫妻笑话**：\n老婆问老公：“如果我掉进水里，你会救我吗？”\n老公说：“废话，我那几十年的私房钱都藏在你手机壳里！”"],
+            distance: ["**短信**：<mark>儿子刚睡了，家里突然好安静。以前觉得床不够大，现在觉得床太大了。想你。</mark>"],
+            reunion: ["**见面**：<mark>终于回来了，让我好好抱一下。（抱足10秒）</mark>"],
+            talk: ["**话题**：<mark>如果我们可以回到过去，改变我们关系中的一件事，你会想改变什么？</mark>"]
+        };
+
+        // --- 2. LOGIC ---
+        const LS_KEY = "harmony_v28_key";
+
+        function openSettings() {
+            document.getElementById("api-key-input").value = localStorage.getItem(LS_KEY) || "";
+            document.getElementById("settings-modal").classList.remove("hidden");
+        }
+        function closeSettings() { document.getElementById("settings-modal").classList.add("hidden"); }
+        
+        function saveKey() {
+            const val = document.getElementById("api-key-input").value.trim();
+            if(!val.startsWith("AIza")) return alert("Key 格式错误");
+            localStorage.setItem(LS_KEY, val);
+            closeSettings();
+            updateStatus();
+            alert("Key 已保存！");
+        }
+        function clearKey() {
+            localStorage.removeItem(LS_KEY);
+            closeSettings();
+            updateStatus();
+            alert("Key 已清除");
+        }
+
+        function updateStatus() {
+            const btn = document.getElementById("key-status-btn");
+            if(localStorage.getItem(LS_KEY)) {
+                btn.innerHTML = "🟢 已激活";
+                btn.className = "text-xs font-bold text-green-600 bg-green-50 px-3 py-2 rounded-lg border border-green-200";
+            } else {
+                btn.innerHTML = "🔴 未设置 Key";
+                btn.className = "text-xs font-bold text-red-500 bg-red-50 px-3 py-2 rounded-lg border border-red-200 animate-pulse";
+            }
+        }
+        updateStatus();
+
+        function openReader(el) {
+            const content = el.querySelector(".content").innerHTML;
+            if(!content) return;
+            // Add backup badge if present
+            const isBackup = el.querySelector(".badge-offline");
+            let finalHtml = content;
+            if(isBackup) finalHtml = `<div class="p-2 bg-slate-100 text-slate-500 text-xs mb-4 rounded">💡 网络故障，已切换至本地锦囊</div>` + finalHtml;
+            
+            document.getElementById("reader-content").innerHTML = finalHtml;
+            document.getElementById("reader-modal").classList.add("open");
+            document.body.style.overflow = "hidden";
+        }
+        function closeReader() {
+            document.getElementById("reader-modal").classList.remove("open");
+            document.body.style.overflow = "";
+        }
+
+        // --- GEMINI ENGINE ---
+        async function generate(category) {
+            const apiKey = localStorage.getItem(LS_KEY);
+            
+            // UI Helpers
+            const btn = document.querySelector(`button[onclick="generate('${category}')"]`);
+            const spinner = btn.querySelector(".spinner");
+            const previewBox = document.getElementById(`res-${category}`);
+            const contentDiv = previewBox.querySelector(".content");
+
+            // Check Key
+            if (!apiKey) {
+                openSettings();
+                return;
+            }
+
+            // Loading State
+            spinner.classList.remove("hidden");
+            btn.disabled = true;
+            btn.querySelector("span").style.opacity = "0.5";
+            previewBox.classList.add("hidden");
+            
+            // Clean old badges
+            const oldBadge = previewBox.querySelector(".badge-offline");
+            if(oldBadge) oldBadge.remove();
+
+            // Prepare Prompt
+            let prompt = "";
+            const systemPrompt = "你是一位专业的两性关系与健康顾问。用户：38岁男，Penang Simpang Ampat。妻37岁（慢热）。指令：**不要给任何链接**。**黄色高亮**：关键话术用 `<mark>` 包裹。**格式**：Markdown。";
+            
+            // Context Logic
+            if(category === 'health') prompt = `针对 ${document.getElementById('healthInput').value} 提供具体护理建议。`;
+            if(category === 'safe') prompt = `无压亲密：${document.getElementById('safeInput').value}。定心丸话术<mark>高亮</mark>。`;
+            if(category === 'spark') prompt = `心动引燃：${document.getElementById('sparkInput').value}。话术<mark>高亮</mark>。`;
+            if(category === 'message') prompt = `微信文案：${document.getElementById('msgInput').value}。3个风格。`;
+            if(category === 'talk') prompt = `深度话题：${document.getElementById('talkInput').value}。`;
+            if(category === 'sex') {
+                const val = document.getElementById('sexInput').value;
+                if(val === 'ears') prompt = "妻耳朵敏感抗拒摸。1.脱敏原理。2.边缘试探(呼吸/头发)。3.引导话术(<mark>高亮</mark>)。";
+                else prompt = `性爱攻略：${val}。`;
+            }
+            if(category === 'apology') prompt = `道歉：${document.getElementById('apologyInput').value}。`;
+            if(category === 'humor') prompt = `笑话：${document.getElementById('humorInput').value}。`;
+            if(category === 'distance') prompt = "异地传情短信。";
+            if(category === 'reunion') prompt = "重逢建议。";
+
+            prompt += ` 随机因子:${Math.random()}`;
+
+            // Execute
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], systemInstruction: { parts: [{ text: systemPrompt }] } })
+                });
+
+                if (res.status !== 200) throw new Error("API Error");
+                const data = await res.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!text) throw new Error("No Text");
+
+                contentDiv.innerHTML = marked.parse(text);
+
+            } catch (e) {
+                console.warn("API Failed, using backup", e);
+                // Fallback Logic
+                const backups = LOCAL_DB[category] || LOCAL_DB['message'];
+                const randomBackup = backups[Math.floor(Math.random() * backups.length)];
+                contentDiv.innerHTML = marked.parse(randomBackup);
+                
+                const badge = document.createElement("div");
+                badge.className = "badge-offline";
+                badge.innerText = "Offline Mode";
+                previewBox.appendChild(badge);
+            }
+
+            // Finish
+            spinner.classList.add("hidden");
+            btn.disabled = false;
+            btn.querySelector("span").style.opacity = "1";
+            
+            // Auto-open for simple types
+            if(['apology', 'humor', 'distance', 'reunion', 'safe', 'spark'].includes(category)) {
+                openReader(previewBox);
+            } else {
+                previewBox.classList.remove("hidden");
+            }
+        }
+    </script>
+</body>
+</html>
